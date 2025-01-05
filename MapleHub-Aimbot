@@ -4,8 +4,8 @@
 	local Tab = Window:NewTab("Main")
 
 	local Tab = Window:NewTab("Aimbot")
-	local Section = Tab:NewSection("Aimbot")
-	Section:NewToggle("Aimbot", "Enable or Disable Aimbot", function(Aimstate)
+	local Section = Tab:NewSection("ล็อคเป้า")
+	Section:NewToggle("Aimbot", "เปิดเพื่อล็อคเป้า", function(Aimstate)
 		-- เปลี่ยนสถานะ Aimbot
 		getgenv().Aimbot.Settings.Enabled = Aimstate
 		if Aimstate then
@@ -16,7 +16,7 @@
 	end)
 	--- Fov ---
 	local Section = Tab:NewSection("Fov")
-	Section:NewToggle("Fov", "Enable or Disable FOV", function(Fovstate)
+	Section:NewToggle("วงล็อคเป้า", "เปิดวงล็อคเป้า", function(Fovstate)
 		-- เปลี่ยนสถานะการแสดง FOV
 		getgenv().Aimbot.FOVSettings.Enabled = Fovstate
 		if Fovstate then
@@ -290,7 +290,7 @@
 
 	local Tab = Window:NewTab("Setting")
 	local Section = Tab:NewSection("GUI")
-	Section:NewKeybind("KeybindText", "KeybindInfo", Enum.KeyCode.F, function()
+	Section:NewKeybind("คีย์เปิด-ปิด UI", "คีย์เปิด-ปิด UI", Enum.KeyCode.F, function()
 		Library:ToggleUI()
 	end)
 
