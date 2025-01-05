@@ -4,8 +4,8 @@
 	local Tab = Window:NewTab("Main")
 
 	local Tab = Window:NewTab("Aimbot")
-	local Section = Tab:NewSection("ล็อคเป้า")
-	Section:NewToggle("Aimbot", "เปิดเพื่อล็อคเป้า", function(Aimstate)
+	local Section = Tab:NewSection("Aimbot")
+	Section:NewToggle("ล็อคเป้า", "เปิดเพื่อล็อคเป้า", function(Aimstate)
 		-- เปลี่ยนสถานะ Aimbot
 		getgenv().Aimbot.Settings.Enabled = Aimstate
 		if Aimstate then
