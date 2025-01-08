@@ -2,7 +2,13 @@
 	local Window = Library.CreateLib("Maple Hub", "DarkTheme")
 
 	local Tab = Window:NewTab("Main")
+    local Section = Tab:NewSection("Main")
+    Section:NewButton("Discord เอาลิ้งไปวางในเว็บ", "กดเพื่อก็อปปี้ลิ้ง", function()
+    local url = "https://discord.gg/88fVVa9Z4Z"  -- ใส่ URL ที่คุณต้องการ
+    setclipboard(url)  -- คัดลอก URL ไปที่คลิปบอร์ด
+    end)
 
+    --- Aimbot ---
 	local Tab = Window:NewTab("Aimbot")
 	local Section = Tab:NewSection("Aimbot")
 	Section:NewToggle("ล็อคเป้า", "เปิดเพื่อล็อคเป้า", function(Aimstate)
@@ -14,6 +20,17 @@
 			CancelLock()
 		end
 	end)
+Section:NewDropdown("ส่วนที่ล็อค", "เลือกส่วนของตัวละครที่ต้องการล็อค", {"หัว", "ลำตัว"}, function(currentOption)
+    -- แปลงตัวเลือกภาษาไทยกลับเป็นชื่อส่วนในตัวละคร
+    local lockPartMapping = {
+        ["หัว"] = "Head",
+        ["ลำตัว"] = "HumanoidRootPart"
+    }
+
+        getgenv().Aimbot.Settings.LockPart = lockPartMapping[currentOption]
+    end)
+
+
 	--- Fov ---
 	local Section = Tab:NewSection("Fov")
 	Section:NewToggle("วงล็อคเป้า", "เปิดวงล็อคเป้า", function(Fovstate)
@@ -285,9 +302,118 @@
 				end
 			end)
 		end)
+        ---- กรอบสี่เหลี่ยม ----
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local HighlightEnabled = false
+local DISPLAY_DISTANCE = 5000
+
+-- กำหนดค่าของกรอบสี่เหลี่ยม
+local BoxColor = Color3.fromRGB(255, 255, 255)
+local BoxTransparency = 1
+local BoxThickness = 2
+local BoxSize = Vector2.new(25, 35)  -- ขนาดกรอบสี่เหลี่ยมคงที่
+
+-- สร้างตารางเก็บกรอบสี่เหลี่ยมของผู้เล่น
+local playerBoxes = {}
+
+local function ClearAllBoxes()
+    for _, box in pairs(playerBoxes) do
+        if box then
+            box:Remove()
+        end
+    end
+    playerBoxes = {}
+end
+
+local function UpdateBox(player, isVisible)
+    if player.Character then
+        local character = player.Character
+        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+        
+        if isVisible and humanoidRootPart then
+            -- สร้างกรอบสี่เหลี่ยมถ้ายังไม่มี
+            if not playerBoxes[player] then
+                local box = Drawing.new("Square")
+                box.Transparency = BoxTransparency
+                box.Thickness = BoxThickness
+                box.Filled = false
+                playerBoxes[player] = box
+            end
+
+            local box = playerBoxes[player]
+            -- อัปเดตสีกรอบทุกครั้งที่มีการตรวจสอบ
+            box.Color = BoxColor
+
+            local viewportPoint, onScreen = workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
+
+            if onScreen then
+                -- กำหนดขนาดของกรอบให้คงที่
+                box.Size = BoxSize
+                -- ปรับตำแหน่งกรอบให้คำนึงถึงพิกัดบนหน้าจอ
+                box.Position = Vector2.new(viewportPoint.X - BoxSize.X / 2, viewportPoint.Y - BoxSize.Y / 2)
+                box.Visible = true
+            else
+                box.Visible = false
+            end
+        else
+            if playerBoxes[player] then
+                playerBoxes[player].Visible = false
+            end
+        end
+    end
+end
 
 
+local function CheckProximity()
+    if not HighlightEnabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return
+    end
+    
+    local localPosition = LocalPlayer.Character.HumanoidRootPart.Position
 
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Team and LocalPlayer.Team and player.Team ~= LocalPlayer.Team then
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local playerPosition = player.Character.HumanoidRootPart.Position
+                local distance = (playerPosition - localPosition).Magnitude
+
+                UpdateBox(player, distance <= DISPLAY_DISTANCE)
+            end
+        end
+    end
+end
+
+local lastCheck = 0
+RunService.Heartbeat:Connect(function(deltaTime)
+    lastCheck = lastCheck + deltaTime
+    if lastCheck >= 0.01 then -- ตรวจสอบทุก 0.1 วินาที
+        CheckProximity()
+        lastCheck = 0
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    if playerBoxes[player] then
+        playerBoxes[player]:Remove()
+        playerBoxes[player] = nil
+    end
+end)
+
+Section:NewToggle("กรอบสี่เหลี่ยม", "เปิดเพื่อแสดงกรอบสี่เหลี่ยมรอบตัวละครผู้เล่นทีมศัตรู", function(ESPstate)
+    HighlightEnabled = ESPstate
+    if not HighlightEnabled then
+        ClearAllBoxes()
+    end
+end)
+    ---สี ---
+    local Section = Tab:NewSection("สี")
+Section:NewColorPicker("สีกรอบ", "เปลี่ยนสีกรอบ", Color3.fromRGB(255,255,255), function(color)
+    BoxColor = color
+end)
+
+---- ตั้งค่า ----
 	local Tab = Window:NewTab("Setting")
 	local Section = Tab:NewSection("GUI")
 	Section:NewKeybind("คีย์เปิด-ปิด UI", "คีย์เปิด-ปิด UI", Enum.KeyCode.F, function()
@@ -324,7 +450,7 @@
 			ThirdPersonSensitivity = 1, -- Boundary: 0.1 - 5
 			TriggerKey = "MouseButton2",
 			Toggle = false,
-			LockPart = "Head" -- Body part to lock on
+			LockPart = "Head" -- Head / HumanoidRootPart
 		}
 
 		Environment.FOVSettings = {
@@ -516,7 +642,7 @@
 				ThirdPersonSensitivity = 1,
 				TriggerKey = "MouseButton2",
 				Toggle = false,
-				LockPart = "Head"
+				LockPart = "Head",
 			}
 
 			Environment.FOVSettings = {
