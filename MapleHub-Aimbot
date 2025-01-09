@@ -20,6 +20,13 @@
 			CancelLock()
 		end
 	end)
+
+    Section:NewToggle("TeamCheck", "เปิดเพื่อล็อคแค่ฝั่งตรงข้าม", function(TeamCheckstate)
+    -- เปลี่ยนสถานะของ TeamCheck ตาม TeamCheckstate
+    getgenv().Aimbot.Settings.TeamCheck = TeamCheckstate
+end)
+
+
 Section:NewDropdown("ส่วนที่ล็อค", "เลือกส่วนของตัวละครที่ต้องการล็อค", {"หัว", "ลำตัว"}, function(currentOption)
     -- แปลงตัวเลือกภาษาไทยกลับเป็นชื่อส่วนในตัวละคร
     local lockPartMapping = {
@@ -443,7 +450,7 @@ end)
 
 		Environment.Settings = {
 			Enabled = Aimstate,
-			TeamCheck = true, -- เปิดใช้งาน TeamCheck
+			TeamCheck = false, -- เปิดใช้งาน TeamCheck
 			AliveCheck = true,
 			Sensitivity = 0, -- Animation length (in seconds) before fully locking onto target
 			ThirdPerson = false, -- Uses mousemoverel instead of CFrame to support locking in third person (could be choppy)
