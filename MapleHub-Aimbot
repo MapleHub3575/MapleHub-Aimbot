@@ -1,668 +1,494 @@
-	local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
-	local Window = Library.CreateLib("Maple Hub", "DarkTheme")
+-- 🌸 โหลด Rayfield UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-	local Tab = Window:NewTab("Main")
-    local Section = Tab:NewSection("Main")
-    Section:NewButton("Discord เอาลิ้งไปวางในเว็บ", "กดเพื่อก็อปปี้ลิ้ง", function()
-    local url = "https://discord.gg/88fVVa9Z4Z"  -- ใส่ URL ที่คุณต้องการ
-    setclipboard(url)  -- คัดลอก URL ไปที่คลิปบอร์ด
-    end)
+local Window = Rayfield:CreateWindow({
+	Name = "Maple Hub",
+	LoadingTitle = "Maple Hub Loading...",
+	LoadingSubtitle = "by Piphoppat",
+	ConfigurationSaving = {
+		Enabled = true,
+		FolderName = "MapleHub",
+		FileName = "MapleConfig"
+	},
+	KeySystem = false,
+})
 
-    --- Aimbot ---
-	local Tab = Window:NewTab("Aimbot")
-	local Section = Tab:NewSection("Aimbot")
-	Section:NewToggle("ล็อคเป้า", "เปิดเพื่อล็อคเป้า", function(Aimstate)
-		-- เปลี่ยนสถานะ Aimbot
-		getgenv().Aimbot.Settings.Enabled = Aimstate
-		if Aimstate then
+local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
+AimbotTab:CreateSection("Aimbot Settings")
+
+------------------------------------------------------
+-- 🌸 Aimbot Core
+------------------------------------------------------
+
+pcall(function()
+	getgenv().Aimbot.Functions:Exit()
+end)
+
+getgenv().Aimbot = {}
+local Aimbot = getgenv().Aimbot
+
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Players = game:GetService("Players")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local Typing, Running = false, false
+local Animation = nil
+
+Aimbot.Settings = {
+	Enabled = false,
+	TeamCheck = false,
+	AliveCheck = true,
+	WallCheck = false,
+	Sensitivity = 0,
+	TriggerKey = "MouseButton2",
+	Toggle = false,
+	LockPart = "Head",
+}
+
+Aimbot.FOVSettings = {
+	Enabled = true,
+	Visible = true,
+	Amount = 90,
+	Color = Color3.fromRGB(255, 255, 255),
+	LockedColor = Color3.fromRGB(255, 70, 70),
+	Transparency = 0.5,
+	Sides = 70,
+	Thickness = 1,
+	Filled = false
+}
+
+Aimbot.FOVCircle = Drawing.new("Circle")
+
+local function CancelLock()
+	Aimbot.Locked = nil
+	if Animation then Animation:Cancel() end
+	Aimbot.FOVCircle.Color = Aimbot.FOVSettings.Color
+end
+
+local function GetClosestPlayer()
+	local RequiredDistance = Aimbot.FOVSettings.Amount
+	local Closest = nil
+
+	for _, v in ipairs(Players:GetPlayers()) do
+		if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild(Aimbot.Settings.LockPart) then
+			if Aimbot.Settings.TeamCheck and v.Team == LocalPlayer.Team then continue end
+			if Aimbot.Settings.AliveCheck and v.Character:FindFirstChildOfClass("Humanoid").Health <= 0 then continue end
+
+			local Vector, OnScreen = Camera:WorldToViewportPoint(v.Character[Aimbot.Settings.LockPart].Position)
+			local Distance = (Vector2.new(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y) - Vector2.new(Vector.X, Vector.Y)).Magnitude
+
+			if Distance < RequiredDistance and OnScreen then
+				RequiredDistance = Distance
+				Closest = v
+			end
+		end
+	end
+
+	Aimbot.Locked = Closest
+end
+
+RunService.RenderStepped:Connect(function()
+	if not Aimbot.Settings.Enabled then
+		Aimbot.FOVCircle.Visible = false
+		return
+	end
+
+	local fov = Aimbot.FOVSettings
+	Aimbot.FOVCircle.Visible = fov.Enabled and fov.Visible
+
+	if fov.Enabled then
+		Aimbot.FOVCircle.Radius = fov.Amount
+		Aimbot.FOVCircle.Thickness = fov.Thickness
+		Aimbot.FOVCircle.Filled = fov.Filled
+		Aimbot.FOVCircle.NumSides = fov.Sides
+		Aimbot.FOVCircle.Color = fov.Color
+		Aimbot.FOVCircle.Transparency = fov.Transparency
+		Aimbot.FOVCircle.Position = Vector2.new(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
+	end
+
+	if Running and Aimbot.Settings.Enabled then
+		GetClosestPlayer()
+		if Aimbot.Locked and Aimbot.Locked.Character then
+			local targetPos = Aimbot.Locked.Character[Aimbot.Settings.LockPart].Position
+			if Aimbot.Settings.Sensitivity > 0 then
+				Animation = TweenService:Create(Camera, TweenInfo.new(Aimbot.Settings.Sensitivity, Enum.EasingStyle.Sine), {
+					CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+				})
+				Animation:Play()
+			else
+				Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+			end
+			Aimbot.FOVCircle.Color = fov.LockedColor
 		else
-			Running = false
 			CancelLock()
 		end
-	end)
-
-    Section:NewToggle("TeamCheck", "เปิดเพื่อล็อคแค่ฝั่งตรงข้าม", function(TeamCheckstate)
-    -- เปลี่ยนสถานะของ TeamCheck ตาม TeamCheckstate
-    getgenv().Aimbot.Settings.TeamCheck = TeamCheckstate
+	end
 end)
 
+-- 🌸 จับปุ่มล็อคเป้าแบบเลือกได้
+UserInputService.InputBegan:Connect(function(input)
+	local key = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name or input.UserInputType.Name
+	if key == Aimbot.Settings.TriggerKey then
+		Running = true
+	end
+end)
 
-Section:NewDropdown("ส่วนที่ล็อค", "เลือกส่วนของตัวละครที่ต้องการล็อค", {"หัว", "ลำตัว"}, function(currentOption)
-    -- แปลงตัวเลือกภาษาไทยกลับเป็นชื่อส่วนในตัวละคร
-    local lockPartMapping = {
-        ["หัว"] = "Head",
-        ["ลำตัว"] = "HumanoidRootPart"
-    }
+UserInputService.InputEnded:Connect(function(input)
+	local key = input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name or input.UserInputType.Name
+	if key == Aimbot.Settings.TriggerKey then
+		Running = false
+		CancelLock()
+	end
+end)
 
-        getgenv().Aimbot.Settings.LockPart = lockPartMapping[currentOption]
-    end)
+------------------------------------------------------
+-- 🌸 Rayfield UI เชื่อมควบคุม
+------------------------------------------------------
 
+AimbotTab:CreateDropdown({
+	Name = "Aim",
+	Options = {"หัว", "ตัว"},
+	CurrentOption = {"หัว"},
+	Flag = "AimLockPart",
+	Callback = function(opt)
+		Aimbot.Settings.LockPart = (opt[1] == "หัว") and "Head" or "HumanoidRootPart"
+	end,
+})
 
-	--- Fov ---
-	local Section = Tab:NewSection("Fov")
-	Section:NewToggle("วงล็อคเป้า", "เปิดวงล็อคเป้า", function(Fovstate)
-		-- เปลี่ยนสถานะการแสดง FOV
-		getgenv().Aimbot.FOVSettings.Enabled = Fovstate
-		if Fovstate then
-		else
-			getgenv().Aimbot.FOVCircle.Visible = false
-		end
-	end)
-	--- SizeFov ----
-	Section:NewSlider("FovSize", "Adjust the size of the FOV circle", 500, 0, function(value)
-		getgenv().Aimbot.FOVSettings.Amount = value
-	end)
+AimbotTab:CreateToggle({
+	Name = "Aimbot",
+	CurrentValue = false,
+	Flag = "AimbotToggle",
+	Callback = function(state)
+		Aimbot.Settings.Enabled = state
+	end,
+})
 
-	--- ESP --- 
-	local Tab = Window:NewTab("ESP")
-	local Section = Tab:NewSection("ESP")
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local LocalPlayer = Players.LocalPlayer
-		local HighlightEnabled = false
-		local DISPLAY_DISTANCE = 3000
+AimbotTab:CreateToggle({
+	Name = "Team Check (ไม่ล็อกเพื่อน)",
+	CurrentValue = false,
+	Flag = "TeamCheck",
+	Callback = function(state)
+		Aimbot.Settings.TeamCheck = state
+	end,
+})
 
-		local HighlightFillColor = Color3.fromRGB(255, 0, 0)
-		local HighlightOutlineColor = Color3.fromRGB(255, 255, 255)
-		local HighlightFillTransparency = 0.5
-		local HighlightOutlineTransparency = 0
+-- 🌸 เพิ่ม Dropdown เลือกปุ่มล็อกเป้า
+AimbotTab:CreateDropdown({
+	Name = "Trigger Key (ปุ่มล็อกเป้า)",
+	Options = {"MouseButton1", "MouseButton2", "E", "Q", "R", "LeftShift"},
+	CurrentOption = {"MouseButton2"},
+	Flag = "TriggerKey",
+	Callback = function(opt)
+		Aimbot.Settings.TriggerKey = opt[1]
+	end,
+})
 
-		local function ClearAllHighlights()
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player.Character and player.Character:FindFirstChild("Highlight") then
-					player.Character.Highlight:Destroy()
-				end
-			end
-		end
+AimbotTab:CreateSection("FOV Settings")
 
-		local function UpdateHighlight(player, isVisible)
-			if player.Character then
-				local character = player.Character
-				local Highlight = character:FindFirstChild("Highlight")
-				
-				if isVisible then
-					if not Highlight then
-						Highlight = Instance.new("Highlight")
-						Highlight.FillColor = HighlightFillColor
-						Highlight.OutlineColor = HighlightOutlineColor
-						Highlight.FillTransparency = HighlightFillTransparency
-						Highlight.OutlineTransparency = HighlightOutlineTransparency
-						Highlight.Parent = character
-					end
-				else
-					if Highlight then
-						Highlight:Destroy()
-					end
-				end
-			end
-		end
+AimbotTab:CreateToggle({
+	Name = "FOV Circle",
+	CurrentValue = true,
+	Flag = "FOVToggle",
+	Callback = function(state)
+		Aimbot.FOVSettings.Enabled = state
+		Aimbot.FOVSettings.Visible = state -- เปิด/ปิดพร้อมกัน
+	end,
+})
 
-		local function CheckProximity()
-			if not HighlightEnabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-				return
-			end
-			
-			local localPosition = LocalPlayer.Character.HumanoidRootPart.Position
+AimbotTab:CreateSlider({
+	Name = "FOV Size",
+	Range = {50, 300},
+	Increment = 1,
+	CurrentValue = 70,
+	Flag = "FOVSize",
+	Callback = function(value)
+		Aimbot.FOVSettings.Amount = value
+	end,
+})
 
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player ~= LocalPlayer and player.Team and LocalPlayer.Team and player.Team ~= LocalPlayer.Team then
-					if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-						local playerPosition = player.Character.HumanoidRootPart.Position
-						local distance = (playerPosition - localPosition).Magnitude
+local ESPTab = Window:CreateTab("ESP", 4483362458)
 
-						UpdateHighlight(player, distance <= DISPLAY_DISTANCE)
-					end
-				end
-			end
-		end
+------------------------------------------------------
+-- 🌸 ESP Core Optimized v3
+------------------------------------------------------
+getgenv().ESP = {}
+local ESP = getgenv().ESP
 
-		local lastCheck = 0
-		RunService.Heartbeat:Connect(function(deltaTime)
-			lastCheck = lastCheck + deltaTime
-			if lastCheck >= 0.1 then -- ตรวจสอบทุก 0.1 วินาที
-				CheckProximity()
-				lastCheck = 0
-			end
-		end)
-
-		Players.PlayerRemoving:Connect(function(player)
-			if player.Character and player.Character:FindFirstChild("Highlight") then
-				player.Character.Highlight:Destroy()
-			end
-		end)
-
-		Section:NewToggle("ไฮไลท์", "เปิดเพื่อไฮไลท์ตัวละครผู้เล่น", function(ESPstate)
-			HighlightEnabled = ESPstate
-			if not HighlightEnabled then
-				ClearAllHighlights()
-			end
-		end)
-
-		--- ระยะ ----
-
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local LocalPlayer = Players.LocalPlayer
-		local DISPLAY_DISTANCE = 2000 -- ระยะที่จะแสดงข้อความระยะห่าง
-		local HighlightEnabled = false -- สถานะเปิด/ปิดของการแสดงข้อความ
-
-		-- ฟังก์ชันเพิ่มข้อความระยะห่างที่เท้าของผู้เล่น
-		local function ShowDistanceLabel(player, distance)
-			if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-				local character = player.Character
-				local humanoidRootPart = character.HumanoidRootPart
-				
-				-- ลบข้อความเดิมก่อนถ้ามี
-				if character:FindFirstChild("DistanceLabel") then
-					character.DistanceLabel:Destroy()
-				end
-
-				-- สร้าง BillboardGui สำหรับข้อความ
-				local billboard = Instance.new("BillboardGui")
-				billboard.Adornee = humanoidRootPart
-				billboard.Size = UDim2.new(0, 100, 0, 50) -- ขนาดของข้อความ
-				billboard.StudsOffset = Vector3.new(0, -1, 0) -- ตำแหน่งของข้อความที่อยู่เหนือเท้า
-				billboard.Name = "DistanceLabel" -- ตั้งชื่อให้กับ BillboardGui เพื่อจะลบในภายหลัง
-				billboard.AlwaysOnTop = true -- ทำให้ข้อความไม่ถูกบังโดยสิ่งกีดขวาง
-				billboard.Parent = character
-
-				-- สร้าง TextLabel สำหรับข้อความ
-				local textLabel = Instance.new("TextLabel")
-				textLabel.Text = math.floor(distance) .. " เมตร" -- แสดงระยะห่าง
-				textLabel.Size = UDim2.new(1, 0, 1, 0)
-				textLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- สีข้อความ
-				textLabel.BackgroundTransparency = 1 -- ทำให้พื้นหลังโปร่งใส
-				textLabel.TextSize = 5
-				textLabel.Parent = billboard
-			end
-		end
-
-		-- ฟังก์ชันคำนวณระยะห่างระหว่างผู้เล่น
-		local function CheckProximity()
-			if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-				return
-			end
-			
-			local localPosition = LocalPlayer.Character.HumanoidRootPart.Position
-
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player ~= LocalPlayer and player.Team and LocalPlayer.Team and player.Team ~= LocalPlayer.Team then
-					if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-						local playerPosition = player.Character.HumanoidRootPart.Position
-						local distance = (playerPosition - localPosition).Magnitude
-
-						-- แสดงข้อความระยะห่างที่เท้าของผู้เล่น
-						if HighlightEnabled then
-							ShowDistanceLabel(player, distance)
-						elseif player.Character:FindFirstChild("DistanceLabel") then
-							player.Character.DistanceLabel:Destroy() -- ลบข้อความเมื่อปิด
-						end
-					end
-				end
-			end
-		end
-
-		-- อัปเดตระยะทุกเฟรม (ลดความถี่)
-		local lastCheck = 0
-		RunService.Heartbeat:Connect(function(deltaTime)
-			lastCheck = lastCheck + deltaTime
-			if lastCheck >= 0.1 then -- ตรวจสอบทุก 0.1 วินาที
-				CheckProximity()
-				lastCheck = 0
-			end
-		end)
-
-		-- ฟังก์ชันสำหรับการเปิดหรือปิดการแสดงข้อความ
-		Section:NewToggle("ระยะห่าง", "เปิดเพื่อดูระยะห่าง", function(state)
-			HighlightEnabled = state
-		end)
-
-		---  HP ----
-		local Players = game:GetService("Players")
-		local RunService = game:GetService("RunService")
-		local LocalPlayer = Players.LocalPlayer
-
-		local HighlightEnabled = false  -- ตัวแปรใช้ในการเปิด/ปิดการแสดงหลอดเลือด
-
-		-- ฟังก์ชันสร้างหลอดเลือดข้างตัวผู้เล่น
-		local function createHealthBar(player)
-			local character = player.Character
-			if not character then return end
-
-			-- สร้าง BillboardGui สำหรับแสดงหลอดเลือด
-			local billboardGui = Instance.new("BillboardGui")
-			billboardGui.Adornee = character:WaitForChild("Head")  -- จะแสดงบนหัวของผู้เล่น
-			billboardGui.Size = UDim2.new(0, 3, 0, 20)  -- ขนาดของหลอดเลือด (กว้าง 100px, สูง 20px)
-			billboardGui.StudsOffset = Vector3.new(-2, -1, 0)  -- ระยะห่างจากหัวของผู้เล่น (3 studs)
-			billboardGui.Parent = character
-
-			-- สร้างพื้นหลังของหลอดเลือด
-			local background = Instance.new("Frame")
-			background.Size = UDim2.new(1, 0, 1, 0)
-			background.BackgroundColor3 = Color3.fromRGB(255, 0, 0)  -- สีแดง
-			background.Parent = billboardGui
-
-			-- สร้างการแสดงระดับหลอดเลือด
-			local healthFill = Instance.new("Frame")
-			healthFill.Size = UDim2.new(1, 0, 1, 0)  -- เริ่มต้นเต็ม
-			healthFill.BackgroundColor3 = Color3.fromRGB(0, 255, 0)  -- สีเขียว
-			healthFill.Parent = background
-
-			-- ฟังก์ชันอัปเดตหลอดเลือด
-			local function updateHealthBar()
-				local humanoid = character:FindFirstChild("Humanoid")
-				if humanoid then
-					local health = humanoid.Health
-					local maxHealth = humanoid.MaxHealth
-					local healthPercentage = health / maxHealth
-					healthFill.Size = UDim2.new(1, 0, healthPercentage, 0)  -- ปรับขนาดของหลอดเลือด
-				end
-			end
-
-			-- อัปเดตหลอดเลือดทุกๆ เฟรม
-			RunService.Heartbeat:Connect(updateHealthBar)
-		end
-
-		-- ฟังก์ชันลบหลอดเลือด
-		local function removeHealthBar(player)
-			local character = player.Character
-			if character and character:FindFirstChild("BillboardGui") then
-				character.BillboardGui:Destroy()
-			end
-		end
-
-		-- ฟังก์ชันเปิด/ปิดการแสดงหลอดเลือด
-		local function toggleHealthBar(state)
-			HighlightEnabled = state
-
-			-- สำหรับผู้เล่นทุกคน
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player.Character then
-					if HighlightEnabled then
-						createHealthBar(player)  -- สร้างหลอดเลือด
-					else
-						removeHealthBar(player)  -- ลบหลอดเลือด
-					end
-				end
-			end
-		end
-
-		-- ฟังก์ชันเปิด/ปิดหลอดเลือดเมื่อมีการกด Toggle
-		Section:NewToggle("หลอดเลือด", "เปิดเพื่อดูเลือด", function(state)
-			toggleHealthBar(state)  -- เรียกฟังก์ชันเปิด/ปิด
-		end)
-
-		-- สำหรับผู้เล่นที่มีตัวละครอยู่แล้ว
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Character then
-				if HighlightEnabled then
-					createHealthBar(player)
-				end
-			end
-		end
-
-		-- เมื่อผู้เล่นเข้าสู่เกมใหม่
-		Players.PlayerAdded:Connect(function(player)
-			player.CharacterAdded:Connect(function(character)
-				if HighlightEnabled then
-					createHealthBar(player)
-				end
-			end)
-		end)
-        ---- กรอบสี่เหลี่ยม ----
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
 local LocalPlayer = Players.LocalPlayer
-local HighlightEnabled = false
-local DISPLAY_DISTANCE = 5000
 
--- กำหนดค่าของกรอบสี่เหลี่ยม
-local BoxColor = Color3.fromRGB(255, 255, 255)
-local BoxTransparency = 1
-local BoxThickness = 2
-local BoxSize = Vector2.new(25, 35)  -- ขนาดกรอบสี่เหลี่ยมคงที่
+ESP.Settings = {
+    Box = false,
+    Highlight = false,
+    Name = false,
+    Health = false,
+    Distance = false,
+    TeamCheck = false,       -- Toggle เช็คทีม เปิด/ปิด
+    Color = Color3.fromRGB(255, 255, 255),
+}
 
--- สร้างตารางเก็บกรอบสี่เหลี่ยมของผู้เล่น
-local playerBoxes = {}
+ESP.Boxes = {}
+ESP.Names = {}
+ESP.HealthBars = {}
+ESP.Distances = {}
+ESP.Highlights = {}
 
-local function ClearAllBoxes()
-    for _, box in pairs(playerBoxes) do
-        if box then
-            box:Remove()
-        end
-    end
-    playerBoxes = {}
+-- เช็คทีม
+local function IsEnemy(player)
+    if not LocalPlayer.Team or not player.Team then return true end
+    return LocalPlayer.Team ~= player.Team
 end
 
-local function UpdateBox(player, isVisible)
-    if player.Character then
-        local character = player.Character
-        local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-        
-        if isVisible and humanoidRootPart then
-            -- สร้างกรอบสี่เหลี่ยมถ้ายังไม่มี
-            if not playerBoxes[player] then
-                local box = Drawing.new("Square")
-                box.Transparency = BoxTransparency
-                box.Thickness = BoxThickness
-                box.Filled = false
-                playerBoxes[player] = box
-            end
+-- สร้าง ESP สำหรับผู้เล่น
+local function CreateESP(player)
+    if player == LocalPlayer then return end
 
-            local box = playerBoxes[player]
-            -- อัปเดตสีกรอบทุกครั้งที่มีการตรวจสอบ
-            box.Color = BoxColor
+    if not ESP.Boxes[player] then
+        local box = Drawing.new("Square")
+        box.Visible = false
+        box.Color = ESP.Settings.Color
+        box.Thickness = 2
+        box.Transparency = 1
+        ESP.Boxes[player] = box
+    end
 
-            local viewportPoint, onScreen = workspace.CurrentCamera:WorldToViewportPoint(humanoidRootPart.Position)
+    if not ESP.Names[player] then
+        local name = Drawing.new("Text")
+        name.Visible = false
+        name.Color = ESP.Settings.Color
+        name.Size = 14
+        name.Center = true
+        name.Outline = true
+        ESP.Names[player] = name
+    end
 
-            if onScreen then
-                -- กำหนดขนาดของกรอบให้คงที่
-                box.Size = BoxSize
-                -- ปรับตำแหน่งกรอบให้คำนึงถึงพิกัดบนหน้าจอ
-                box.Position = Vector2.new(viewportPoint.X - BoxSize.X / 2, viewportPoint.Y - BoxSize.Y / 2)
-                box.Visible = true
-            else
-                box.Visible = false
-            end
-        else
-            if playerBoxes[player] then
-                playerBoxes[player].Visible = false
-            end
-        end
+    if not ESP.HealthBars[player] then
+        local healthBar = Drawing.new("Line")
+        healthBar.Visible = false
+        healthBar.Color = Color3.fromRGB(0, 255, 0)
+        healthBar.Thickness = 2
+        ESP.HealthBars[player] = healthBar
+    end
+
+    if not ESP.Distances[player] then
+        local distance = Drawing.new("Text")
+        distance.Visible = false
+        distance.Color = ESP.Settings.Color
+        distance.Size = 14
+        distance.Center = true
+        distance.Outline = true
+        ESP.Distances[player] = distance
     end
 end
 
+-- ซ่อน ESP
+local function HideESP(player)
+    if ESP.Boxes[player] then ESP.Boxes[player].Visible = false end
+    if ESP.Names[player] then ESP.Names[player].Visible = false end
+    if ESP.HealthBars[player] then ESP.HealthBars[player].Visible = false end
+    if ESP.Distances[player] then ESP.Distances[player].Visible = false end
+end
 
-local function CheckProximity()
-    if not HighlightEnabled or not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+-- Highlight
+local function UpdateHighlight(player)
+    if player == LocalPlayer then return end
+    if ESP.Settings.TeamCheck and not IsEnemy(player) then
+        if ESP.Highlights[player] then
+            ESP.Highlights[player]:Destroy()
+            ESP.Highlights[player] = nil
+        end
         return
     end
-    
-    local localPosition = LocalPlayer.Character.HumanoidRootPart.Position
 
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Team and LocalPlayer.Team and player.Team ~= LocalPlayer.Team then
-            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local playerPosition = player.Character.HumanoidRootPart.Position
-                local distance = (playerPosition - localPosition).Magnitude
+    local char = player.Character
+    if not char then return end
 
-                UpdateBox(player, distance <= DISPLAY_DISTANCE)
-            end
+    local highlight = ESP.Highlights[player]
+
+    if ESP.Settings.Highlight then
+        if not highlight then
+            highlight = Instance.new("Highlight")
+            highlight.Name = "ESPHighlight"
+            highlight.Adornee = char
+            highlight.FillColor = ESP.Settings.Color
+            highlight.FillTransparency = 0.5
+            highlight.OutlineColor = Color3.fromRGB(0,0,0)
+            highlight.OutlineTransparency = 0
+            highlight.Parent = char
+            ESP.Highlights[player] = highlight
+        end
+    else
+        if highlight then
+            highlight:Destroy()
+            ESP.Highlights[player] = nil
         end
     end
 end
 
-local lastCheck = 0
-RunService.Heartbeat:Connect(function(deltaTime)
-    lastCheck = lastCheck + deltaTime
-    if lastCheck >= 0.01 then -- ตรวจสอบทุก 0.1 วินาที
-        CheckProximity()
-        lastCheck = 0
+-- Update ESP ทุกเฟรม
+RunService.RenderStepped:Connect(function()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player == LocalPlayer then continue end
+
+        -- เช็คทีมแบบ toggle
+        if ESP.Settings.TeamCheck and not IsEnemy(player) then
+            HideESP(player)
+            continue
+        end
+
+        CreateESP(player)
+        UpdateHighlight(player)
+
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChildOfClass("Humanoid") then
+            local hrp = char.HumanoidRootPart
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            local screenPos = Vector2.new(pos.X, pos.Y)
+
+            if onScreen then
+                -- Box
+                if ESP.Settings.Box then
+                    local baseWidth, baseHeight = 20, 45
+                    local distanceScale = 1 / (pos.Z / 20)
+                    local scale = math.clamp(distanceScale, 0.8, 1.5)
+                    local size = Vector2.new(baseWidth, baseHeight) * scale
+                    ESP.Boxes[player].Size = size
+                    ESP.Boxes[player].Position = screenPos - size/2
+                    ESP.Boxes[player].Visible = true
+                else
+                    ESP.Boxes[player].Visible = false
+                end
+
+                local boxSizeY = ESP.Boxes[player] and ESP.Boxes[player].Size.Y or 45
+
+                -- Name
+                if ESP.Settings.Name then
+                    ESP.Names[player].Text = player.Name
+                    ESP.Names[player].Position = screenPos - Vector2.new(0, boxSizeY/2 + 10)
+                    ESP.Names[player].Visible = true
+                else
+                    ESP.Names[player].Visible = false
+                end
+
+                -- Health
+                if ESP.Settings.Health then
+                    local healthRatio = humanoid.Health/humanoid.MaxHealth
+                    local startPos = screenPos - Vector2.new(ESP.Boxes[player].Size.X/2, boxSizeY/2 + 5)
+                    local endPos = startPos + Vector2.new(ESP.Boxes[player].Size.X * healthRatio, 0)
+                    ESP.HealthBars[player].From = startPos
+                    ESP.HealthBars[player].To = endPos
+                    ESP.HealthBars[player].Color = Color3.fromRGB(0,255,0)
+                    ESP.HealthBars[player].Visible = true
+                else
+                    ESP.HealthBars[player].Visible = false
+                end
+
+                -- Distance
+                if ESP.Settings.Distance then
+                    local dist = math.floor((hrp.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude)
+                    ESP.Distances[player].Text = tostring(dist).."m"
+                    ESP.Distances[player].Position = screenPos + Vector2.new(0, boxSizeY/2 + 10)
+                    ESP.Distances[player].Visible = true
+                else
+                    ESP.Distances[player].Visible = false
+                end
+            else
+                HideESP(player)
+            end
+        else
+            HideESP(player)
+        end
     end
 end)
 
+-- Player Added/Removing
+Players.PlayerAdded:Connect(function(player)
+    CreateESP(player)
+end)
 Players.PlayerRemoving:Connect(function(player)
-    if playerBoxes[player] then
-        playerBoxes[player]:Remove()
-        playerBoxes[player] = nil
+    HideESP(player)
+    if ESP.Highlights[player] then
+        ESP.Highlights[player]:Destroy()
+        ESP.Highlights[player] = nil
     end
 end)
 
-Section:NewToggle("กรอบสี่เหลี่ยม", "เปิดเพื่อแสดงกรอบสี่เหลี่ยมรอบตัวละครผู้เล่นทีมศัตรู", function(ESPstate)
-    HighlightEnabled = ESPstate
-    if not HighlightEnabled then
-        ClearAllBoxes()
-    end
-end)
-    ---สี ---
-    local Section = Tab:NewSection("สี")
-Section:NewColorPicker("สีกรอบ", "เปลี่ยนสีกรอบ", Color3.fromRGB(255,255,255), function(color)
-    BoxColor = color
-end)
+------------------------------------------------------
+-- 🌸 ESP GUI Controls (Rayfield)
+------------------------------------------------------
+ESPTab:CreateSection("ESP TeamCheck")
 
----- ตั้งค่า ----
-	local Tab = Window:NewTab("Setting")
-	local Section = Tab:NewSection("GUI")
-	Section:NewKeybind("คีย์เปิด-ปิด UI", "คีย์เปิด-ปิด UI", Enum.KeyCode.F, function()
-		Library:ToggleUI()
-	end)
+ESPTab:CreateToggle({
+    Name = "ESP เช็คทีม",
+    CurrentValue = false,
+    Flag = "ESPTeamCheck",
+    Callback = function(Value)
+        ESP.Settings.TeamCheck = Value
+    end,
+})
 
-	---------- สคริป --------------
-		local select = select
-		local pcall, getgenv, next, Vector2, mathclamp, type, mousemoverel = select(1, pcall, getgenv, next, Vector2.new, math.clamp, type, mousemoverel or (Input and Input.MouseMove))
+ESPTab:CreateSection("ESP Settings")
 
-		pcall(function()
-			getgenv().Aimbot.Functions:Exit()
-		end)
+ESPTab:CreateToggle({
+    Name = "ESP กรอบผู้เล่น",
+    CurrentValue = false,
+    Flag = "ESPBox",
+    Callback = function(Value)
+        ESP.Settings.Box = Value
+    end,
+})
 
-		getgenv().Aimbot = {}
-		local Environment = getgenv().Aimbot
+ESPTab:CreateToggle({
+    Name = "ESP ไฮไลต์ผู้เล่น",
+    CurrentValue = false,
+    Flag = "ESPHilight",
+    Callback = function(Value)
+        ESP.Settings.Highlight = Value
+        for _, player in ipairs(Players:GetPlayers()) do
+            UpdateHighlight(player)
+        end
+    end,
+})
 
-		local RunService = game:GetService("RunService")
-		local UserInputService = game:GetService("UserInputService")
-		local TweenService = game:GetService("TweenService")
-		local Players = game:GetService("Players")
-		local Camera = workspace.CurrentCamera
-		local LocalPlayer = Players.LocalPlayer
-		local fovSize = 70
+ESPTab:CreateToggle({
+    Name = "ESP ชื่อผู้เล่น",
+    CurrentValue = false,
+    Flag = "ESPName",
+    Callback = function(Value)
+        ESP.Settings.Name = Value
+    end,
+})
 
-		local RequiredDistance, Typing, Running, Animation, ServiceConnections = 2000, false, false, nil, {}
+ESPTab:CreateToggle({
+    Name = "ESP เลือดผู้เล่น",
+    CurrentValue = false,
+    Flag = "ESPHealth",
+    Callback = function(Value)
+        ESP.Settings.Health = Value
+    end,
+})
 
-		Environment.Settings = {
-			Enabled = Aimstate,
-			TeamCheck = false, -- เปิดใช้งาน TeamCheck
-			AliveCheck = true,
-			Sensitivity = 0, -- Animation length (in seconds) before fully locking onto target
-			ThirdPerson = false, -- Uses mousemoverel instead of CFrame to support locking in third person (could be choppy)
-			ThirdPersonSensitivity = 1, -- Boundary: 0.1 - 5
-			TriggerKey = "MouseButton2",
-			Toggle = false,
-			LockPart = "Head" -- Head / HumanoidRootPart
-		}
+ESPTab:CreateToggle({
+    Name = "ESP ระยะ",
+    CurrentValue = false,
+    Flag = "ESPDistance",
+    Callback = function(Value)
+        ESP.Settings.Distance = Value
+    end,
+})
 
-		Environment.FOVSettings = {
-			Enabled = false,
-			Visible = true,
-			Amount = 70,
-			Color = Color3.fromRGB(255, 255, 255),
-			LockedColor = Color3.fromRGB(255, 70, 70),
-			Transparency = 1,
-			Sides = 90,
-			Thickness = 1,
-			Filled = false
-		}
-
-		Environment.FOVCircle = Drawing.new("Circle")
-
-		--// Functions
-
-		local function CancelLock()
-			Environment.Locked = nil
-			if Animation then Animation:Cancel() end
-			Environment.FOVCircle.Color = Environment.FOVSettings.Color
-		end
-
-		local function GetClosestPlayer()
-			if not Environment.Locked then
-				RequiredDistance = (Environment.FOVSettings.Enabled and Environment.FOVSettings.Amount or 2000)
-
-				for _, v in next, Players:GetPlayers() do
-					if v ~= LocalPlayer then
-						if v.Character and v.Character:FindFirstChild(Environment.Settings.LockPart) and v.Character:FindFirstChildOfClass("Humanoid") then
-							-- ตรวจสอบทีม
-							if Environment.Settings.TeamCheck and v.Team == LocalPlayer.Team then 
-								continue 
-							end
-
-							if Environment.Settings.AliveCheck and v.Character:FindFirstChildOfClass("Humanoid").Health <= 0 then 
-								continue 
-							end
-
-							local Vector, OnScreen = Camera:WorldToViewportPoint(v.Character[Environment.Settings.LockPart].Position)
-							local Distance = (Vector2(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y) - Vector2(Vector.X, Vector.Y)).Magnitude
-
-							if Distance < RequiredDistance and OnScreen then
-								RequiredDistance = Distance
-								Environment.Locked = v
-							end
-						end
-					end
-				end
-			elseif (Vector2(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y) - Vector2(Camera:WorldToViewportPoint(Environment.Locked.Character[Environment.Settings.LockPart].Position).X, Camera:WorldToViewportPoint(Environment.Locked.Character[Environment.Settings.LockPart].Position).Y)).Magnitude > RequiredDistance then
-				CancelLock()
-			end
-		end
-
-		--// Typing Check
-
-		ServiceConnections.TypingStartedConnection = UserInputService.TextBoxFocused:Connect(function()
-			Typing = true
-		end)
-
-		ServiceConnections.TypingEndedConnection = UserInputService.TextBoxFocusReleased:Connect(function()
-			Typing = false
-		end)
-
-		--// Main
-
-		local function Load()
-			ServiceConnections.RenderSteppedConnection = RunService.RenderStepped:Connect(function()
-				if Environment.FOVSettings.Enabled and Environment.Settings.Enabled then
-					Environment.FOVCircle.Radius = Environment.FOVSettings.Amount
-					Environment.FOVCircle.Thickness = Environment.FOVSettings.Thickness
-					Environment.FOVCircle.Filled = Environment.FOVSettings.Filled
-					Environment.FOVCircle.NumSides = Environment.FOVSettings.Sides
-					Environment.FOVCircle.Color = Environment.FOVSettings.Color
-					Environment.FOVCircle.Transparency = Environment.FOVSettings.Transparency
-					Environment.FOVCircle.Visible = Environment.FOVSettings.Visible
-					Environment.FOVCircle.Position = Vector2(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
-				else
-					Environment.FOVCircle.Visible = false
-				end
-
-				if Running and Environment.Settings.Enabled then
-					GetClosestPlayer()
-
-					if Environment.Locked then
-						if Environment.Settings.ThirdPerson then
-							Environment.Settings.ThirdPersonSensitivity = mathclamp(Environment.Settings.ThirdPersonSensitivity, 0.1, 5)
-
-							local Vector = Camera:WorldToViewportPoint(Environment.Locked.Character[Environment.Settings.LockPart].Position)
-							mousemoverel((Vector.X - UserInputService:GetMouseLocation().X) * Environment.Settings.ThirdPersonSensitivity, (Vector.Y - UserInputService:GetMouseLocation().Y) * Environment.Settings.ThirdPersonSensitivity)
-						else
-							if Environment.Settings.Sensitivity > 0 then
-								Animation = TweenService:Create(Camera, TweenInfo.new(Environment.Settings.Sensitivity, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {CFrame = CFrame.new(Camera.CFrame.Position, Environment.Locked.Character[Environment.Settings.LockPart].Position)})
-								Animation:Play()
-							else
-								Camera.CFrame = CFrame.new(Camera.CFrame.Position, Environment.Locked.Character[Environment.Settings.LockPart].Position)
-							end
-						end
-
-					Environment.FOVCircle.Color = Environment.FOVSettings.LockedColor
-					end
-				end
-			end)
-
-			ServiceConnections.InputBeganConnection = UserInputService.InputBegan:Connect(function(Input)
-				if not Typing then
-					pcall(function()
-						if Input.KeyCode == Enum.KeyCode[Environment.Settings.TriggerKey] then
-							if Environment.Settings.Toggle then
-								Running = not Running
-
-								if not Running then
-									CancelLock()
-								end
-							else
-								Running = true
-							end
-						end
-					end)
-
-					pcall(function()
-						if Input.UserInputType == Enum.UserInputType[Environment.Settings.TriggerKey] then
-							if Environment.Settings.Toggle then
-								Running = not Running
-
-								if not Running then
-									CancelLock()
-								end
-							else
-								Running = true
-							end
-						end
-					end)
-				end
-			end)
-
-			ServiceConnections.InputEndedConnection = UserInputService.InputEnded:Connect(function(Input)
-				if not Typing then
-					if not Environment.Settings.Toggle then
-						pcall(function()
-							if Input.KeyCode == Enum.KeyCode[Environment.Settings.TriggerKey] then
-								Running = false; CancelLock()
-							end
-						end)
-
-						pcall(function()
-							if Input.UserInputType == Enum.UserInputType[Environment.Settings.TriggerKey] then
-								Running = false; CancelLock()
-							end
-						end)
-					end
-				end
-			end)
-		end
-
-		--// Functions
-
-		Environment.Functions = {}
-
-		function Environment.Functions:Exit()
-			for _, v in next, ServiceConnections do
-				v:Disconnect()
-			end
-
-			if Environment.FOVCircle.Remove then Environment.FOVCircle:Remove() end
-
-			getgenv().Aimbot.Functions = nil
-			getgenv().Aimbot = nil
-			
-			Load = nil; GetClosestPlayer = nil; CancelLock = nil
-		end
-
-		function Environment.Functions:Restart()
-			for _, v in next, ServiceConnections do
-				v:Disconnect()
-			end
-
-			Load()
-		end
-
-		function Environment.Functions:ResetSettings()
-			Environment.Settings = {
-				Enabled = Aimstate,
-				TeamCheck = false, -- เปิดใช้งาน TeamCheck
-				AliveCheck = true,
-				Sensitivity = 0,
-				ThirdPerson = false,
-				ThirdPersonSensitivity = 1,
-				TriggerKey = "MouseButton2",
-				Toggle = false,
-				LockPart = "Head",
-			}
-
-			Environment.FOVSettings = {
-				Enabled = false,
-				Visible = true,
-				Amount = 90,
-				Color = Color3.fromRGB(255, 255, 255),
-				LockedColor = Color3.fromRGB(255, 70, 70),
-				Transparency = 1,
-				Sides = 100,
-				Thickness = 1,
-				Filled = false
-			}
-		end
-
-	Load()
+ESPTab:CreateToggle({
+    Name = "ESP เช็คทีม",
+    CurrentValue = false,
+    Flag = "ESPTeamCheck",
+    Callback = function(Value)
+        ESP.Settings.TeamCheck = Value
+    end,
+})
