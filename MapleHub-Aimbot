@@ -13,6 +13,7 @@ local Window = Rayfield:CreateWindow({
 	KeySystem = false,
 })
 
+
 local AimbotTab = Window:CreateTab("Aimbot", 4483362458)
 AimbotTab:CreateSection("Aimbot Settings")
 
@@ -484,11 +485,7 @@ ESPTab:CreateToggle({
     end,
 })
 
-ESPTab:CreateToggle({
-    Name = "ESP เช็คทีม",
-    CurrentValue = false,
-    Flag = "ESPTeamCheck",
-    Callback = function(Value)
-        ESP.Settings.TeamCheck = Value
-    end,
-})
+
+-- 🌸 Settings Tab
+local SettingsTab = Window:CreateTab("⚙️ Settings")
+local SectionSettings = SettingsTab:CreateSection("UI Settings")
